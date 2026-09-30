@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Transcript Coder</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <header>
+        <div class="header-top">
+            <h1>Transcript Coder</h1>
+            <select id="transcript-select">
+                <option value="">Select a transcript…</option>
+            </select>
+            <span id="status"></span>
+        </div>
+        <div id="research-questions">
+            <span><strong>RQ1</strong>: How do organizations implementing multidimensional assessment collect
+                participant information?</span><br />
+            <span><strong>RQ2</strong>: How is that data analysed and used to support participants and
+                organizations?</span><br />
+            <span><strong>RQ3</strong>: How can HCI researchers support participatory multidimensional assessment and
+                the people who administer it?</span>
+        </div>
+    </header>
+
+    <div id="layout">
+        <div id="transcript-pane">
+            <p class="placeholder">Select a transcript above to begin. Highlight any text with your mouse, then click a
+                code on the right to apply it. Clicking a code with nothing selected shows every quote coded with it.
+            </p>
+        </div>
+
+        <div id="side-pane">
+            <div class="panel">
+                <h2>Codes</h2>
+                <form id="code-form">
+                    <input type="text" id="new-code-name" placeholder="New code name…" maxlength="60">
+                    <input type="color" id="new-code-color" value="#ffe066">
+                    <button type="submit">Add</button>
+                </form>
+                <input type="text" id="code-search" placeholder="Search codes…">
+                <div id="code-list"></div>
+                <div id="active-code-banner">No active code selected.</div>
+            </div>
+
+            <div id="modal-backdrop" class="modal-backdrop" style="display:none;">
+                <div class="modal-box">
+                    <h3 id="modal-title">New code</h3>
+                    <label class="modal-field">
+                        Definition
+                        <textarea id="modal-definition" rows="4"
+                            placeholder="What does this code capture? (optional)"></textarea>
+                    </label>
+                    <label class="modal-field">
+                        Category
+                        <select id="modal-category"></select>
+                    </label>
+                    <label class="modal-field" id="modal-new-category-wrap" style="display:none;">
+                        New category name
+                        <input type="text" id="modal-new-category" placeholder="e.g. HCI Design Opportunities">
+                    </label>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" id="modal-cancel-btn">Cancel</button>
+                        <button type="button" class="btn primary" id="modal-confirm-btn">Add code</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="quotes-modal-backdrop" class="modal-backdrop" style="display:none;">
+                <div class="modal-box quotes-modal-box">
+                    <h3 id="quotes-modal-title">Quotes</h3>
+                    <div id="quotes-modal-list"></div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" id="quotes-modal-close-btn">Close</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="quote-codes-modal-backdrop" class="modal-backdrop" style="display:none;">
+                <div class="modal-box quotes-modal-box">
+                    <h3 id="quote-codes-modal-title">Codes on this quote</h3>
+                    <div id="quote-codes-modal-list"></div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" id="quote-codes-modal-close-btn">Close</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="code-context-menu" class="context-menu" style="display:none;">
+                <button type="button" id="context-rename-code-btn">Rename this code…</button>
+                <button type="button" id="context-apply-code-btn">Apply this code with AI…</button>
+            </div>
+
+            <div id="ai-apply-modal-backdrop" class="modal-backdrop" style="display:none;">
+                <div class="modal-box quotes-modal-box">
+                    <h3 id="ai-apply-modal-title">Apply code with AI</h3>
+                    <div id="ai-apply-modal-body"></div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" id="ai-apply-cancel-btn">Cancel</button>
+                        <button type="button" class="btn primary" id="ai-apply-confirm-btn" style="display:none;">Apply
+                            selected</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="codebook-picker-backdrop" class="modal-backdrop" style="display:none;">
+                <div class="modal-box quotes-modal-box">
+                    <h3 id="codebook-picker-title">Choose a codebook to load</h3>
+                    <div id="codebook-picker-list"></div>
+                </div>
+            </div>
+            <input type="file" id="codebook-picker-file-input" accept=".csv,text/csv" style="display:none;">
+
+            <div class="panel">
+                <h2>Codings in this transcript</h2>
+                <div id="codings-list">
+                    <p class="empty-note">Nothing coded yet.</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Actions</h2>
+                <div id="footer-actions">
+                    <button class="btn" id="apply-from-file-btn"
+                        title="Pick a codings CSV for the currently loaded transcript and apply it.">Apply
+                        codes from file…</button>
+                    <button class="btn" id="clear-transcript-btn">Clear this transcript's codings</button>
+                    <button class="btn" id="export-transcript-btn">Export this transcript's codings</button>
+                    <button class="btn" id="export-btn">Export all codings (CSV)</button>
+                    <button class="btn" id="save-codebook-btn"
+                        title="Exports the current code list as a CSV. Suggested filename: yymmdd-hhmin-codebook.csv.">Save
+                        codebook (.csv)</button>
+                    <input type="file" id="apply-from-file-input" accept=".csv,text/csv" style="display:none;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
