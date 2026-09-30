@@ -1,0 +1,10 @@
+on:
+  push:
+    branches: [main]
+
+jobs:
+  my-job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # ...your steps
