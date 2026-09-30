@@ -11,6 +11,69 @@
     box-sizing: border-box;
 }
 
+#password-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(20, 24, 32, 0.72);
+}
+
+body:not(.authenticated) #password-gate {
+    display: flex;
+}
+
+body:not(.authenticated) > header,
+body:not(.authenticated) > #layout {
+    visibility: hidden;
+}
+
+.password-box {
+    width: 340px;
+    max-width: 100%;
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.password-box h1 {
+    margin: 0 0 20px;
+    font-size: 20px;
+}
+
+.password-box label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.password-box input {
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 15px;
+}
+
+.password-box #password-error {
+    min-height: 18px;
+    margin: 0 0 10px;
+    color: #b42318;
+    font-size: 13px;
+}
+
+.password-box button {
+    width: 100%;
+    padding: 8px 12px;
+}
+
 html,
 body {
     margin: 0;

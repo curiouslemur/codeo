@@ -1,4 +1,25 @@
 (function () {
+    const PASSWORD_HASH = "3477699d6895a202360941241b8890bd7305f2073045b1c8c76946be9a60454e";
+    const passwordForm = document.getElementById("password-form");
+    const passwordInput = document.getElementById("password-input");
+    const passwordError = document.getElementById("password-error");
+
+    document.body.classList.remove("authenticated");
+    passwordForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const bytes = new TextEncoder().encode(passwordInput.value);
+        const digest = await crypto.subtle.digest("SHA-256", bytes);
+        const enteredHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+        if (enteredHash === PASSWORD_HASH) {
+            document.body.classList.add("authenticated");
+            passwordError.textContent = "";
+            passwordInput.value = "";
+        } else {
+            passwordError.textContent = "Incorrect password.";
+            passwordInput.select();
+        }
+    });
+
     // ---- Transcripts ------------------------------------------------------
     // Filled with transcripts the user loads via "Load transcript…" (and those
     // remembered from earlier sessions). Each entry: { label, file, type, html }.
