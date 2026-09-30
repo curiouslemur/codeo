@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Transcript Coder</title>
+    <title>Codeo</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -16,6 +16,9 @@
             <select id="transcript-select">
                 <option value="">Select a transcript…</option>
             </select>
+            <button type="button" class="btn" id="load-transcript-btn"
+                title="Open a .docx or .txt transcript from your computer">Load transcript…</button>
+            <input type="file" id="load-transcript-input" accept=".docx,.txt,text/plain" style="display:none;">
             <span id="status"></span>
         </div>
         <div id="research-questions">
@@ -30,7 +33,8 @@
 
     <div id="layout">
         <div id="transcript-pane">
-            <p class="placeholder">Select a transcript above to begin. Highlight any text with your mouse, then click a
+            <p class="placeholder">Click “Load transcript…” above to open a .docx or .txt transcript from your
+                computer (transcripts you have loaded before are listed in the dropdown). Highlight any text with your mouse, then click a
                 code on the right to apply it. Clicking a code with nothing selected shows every quote coded with it.
             </p>
         </div>
@@ -39,11 +43,18 @@
             <div class="panel">
                 <h2>Codes</h2>
                 <form id="code-form">
-                    <input type="text" id="new-code-name" placeholder="New code name…" maxlength="60">
-                    <input type="color" id="new-code-color" value="#ffe066">
+                    <div class="input-clear-wrap" id="new-code-name-wrap">
+                        <input type="text" id="new-code-name" placeholder="New code name…" maxlength="60">
+                        <button type="button" class="clear-btn" id="new-code-name-clear" title="Clear"
+                            style="display:none;">✕</button>
+                    </div>
                     <button type="submit">Add</button>
                 </form>
-                <input type="text" id="code-search" placeholder="Search codes…">
+                <div class="input-clear-wrap" id="code-search-wrap">
+                    <input type="text" id="code-search" placeholder="Search codes…">
+                    <button type="button" class="clear-btn" id="code-search-clear" title="Clear search"
+                        style="display:none;">✕</button>
+                </div>
                 <div id="code-list"></div>
                 <div id="active-code-banner">No active code selected.</div>
             </div>
@@ -51,6 +62,16 @@
             <div id="modal-backdrop" class="modal-backdrop" style="display:none;">
                 <div class="modal-box">
                     <h3 id="modal-title">New code</h3>
+                    <div id="modal-edit-fields" style="display:none;">
+                        <label class="modal-field">
+                            Name
+                            <input type="text" id="modal-name" maxlength="60">
+                        </label>
+                    </div>
+                    <label class="modal-field">
+                        Color
+                        <input type="color" id="modal-color">
+                    </label>
                     <label class="modal-field">
                         Definition
                         <textarea id="modal-definition" rows="4"
@@ -92,8 +113,8 @@
             </div>
 
             <div id="code-context-menu" class="context-menu" style="display:none;">
-                <button type="button" id="context-rename-code-btn">Rename this code…</button>
-                <button type="button" id="context-apply-code-btn">Apply this code with AI…</button>
+                <button type="button" id="context-edit-code-btn">Edit this code…</button>
+                <button type="button" id="context-apply-code-btn" style="display:none;">Apply this code with AI…</button>
             </div>
 
             <div id="ai-apply-modal-backdrop" class="modal-backdrop" style="display:none;">

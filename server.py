@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static file server for the Transcript Coder app, plus one extra endpoint:
+"""Static file server for the Codeo app, plus one extra endpoint:
 
     POST /api/apply-code
 

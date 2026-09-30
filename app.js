@@ -1,18 +1,8 @@
 (function () {
-    // ---- Config: list of codeable transcripts -----------------------------
-    // To add a new transcript, drop the file into transcripts/ and add an
-    // entry here. type is "docx" (rendered via mammoth.js) or "txt" (plain text).
-    const TRANSCRIPTS = [
-        { label: "1 - Larry and Darleen", file: "1- Larry and Darleen.docx", type: "docx" },
-        { label: "2 - Dr. Nelaon and Karen", file: "2 - Dr.Nelaon and Karen.docx", type: "docx" },
-        { label: "3 - Scott", file: "3 - Scott.docx", type: "docx" },
-        { label: "4 - Karen", file: "4 - Karen.docx", type: "docx" },
-        { label: "5 - Robin", file: "5 - Robin.docx", type: "docx" },
-        { label: "6 - Juanfe", file: "6 - Juanfe.docx", type: "docx" },
-        { label: "7 - Dr. Mazade", file: "7 - Dr.Mazade.docx", type: "docx" },
-        { label: "8 - Nancy", file: "8 - Nancy.docx", type: "docx" },
-        { label: "9 - Travis", file: "9 - Travis.docx", type: "docx" },
-    ];
+    // ---- Transcripts ------------------------------------------------------
+    // Filled with transcripts the user loads via "Load transcript…" (and those
+    // remembered from earlier sessions). Each entry: { label, file, type, html }.
+    const TRANSCRIPTS = [];
 
     const CATEGORY_COLORS = {
         "Data Collection": "#a8d5ff",
@@ -21,15 +11,21 @@
     };
 
     const CODES_KEY = "transcript-coder:codes";
+    const UPLOADED_TRANSCRIPTS_KEY = "transcript-coder:uploaded-transcripts";
     const highlightsKey = (file) => "transcript-coder:highlights:" + file;
 
     const transcriptSelect = document.getElementById("transcript-select");
+    const loadTranscriptBtn = document.getElementById("load-transcript-btn");
+    const loadTranscriptInput = document.getElementById("load-transcript-input");
     const transcriptPane = document.getElementById("transcript-pane");
     const statusEl = document.getElementById("status");
     const codeForm = document.getElementById("code-form");
     const newCodeName = document.getElementById("new-code-name");
-    const newCodeColor = document.getElementById("new-code-color");
+    const newCodeNameClearBtn = document.getElementById("new-code-name-clear");
+    // Color preselected in the new-code modal; remembers the last one used.
+    let newCodeColor = "#ffe066";
     const codeSearchInput = document.getElementById("code-search");
+    const codeSearchClearBtn = document.getElementById("code-search-clear");
     const codeListEl = document.getElementById("code-list");
     const activeCodeBanner = document.getElementById("active-code-banner");
     const codingsListEl = document.getElementById("codings-list");
@@ -45,6 +41,9 @@
     const modalCategory = document.getElementById("modal-category");
     const modalNewCategoryWrap = document.getElementById("modal-new-category-wrap");
     const modalNewCategory = document.getElementById("modal-new-category");
+    const modalEditFields = document.getElementById("modal-edit-fields");
+    const modalName = document.getElementById("modal-name");
+    const modalColor = document.getElementById("modal-color");
     const modalCancelBtn = document.getElementById("modal-cancel-btn");
     const modalConfirmBtn = document.getElementById("modal-confirm-btn");
     const quotesModalBackdrop = document.getElementById("quotes-modal-backdrop");
@@ -56,7 +55,7 @@
     const quoteCodesModalList = document.getElementById("quote-codes-modal-list");
     const quoteCodesModalCloseBtn = document.getElementById("quote-codes-modal-close-btn");
     const codeContextMenu = document.getElementById("code-context-menu");
-    const contextRenameCodeBtn = document.getElementById("context-rename-code-btn");
+    const contextEditCodeBtn = document.getElementById("context-edit-code-btn");
     const contextApplyCodeBtn = document.getElementById("context-apply-code-btn");
     const aiApplyModalBackdrop = document.getElementById("ai-apply-modal-backdrop");
     const aiApplyModalTitle = document.getElementById("ai-apply-modal-title");
@@ -70,25 +69,13 @@
     let contextMenuCode = null;
     let aiSuggestions = [];
     let pendingCode = null;
+    let editingCode = null;
 
     let codes = loadCodes();
     let activeCodeId = null;
     let currentFile = null;
     let pendingSelection = null;
     let codeSearchTerm = "";
-
-    // Clicking a text input normally collapses any text selection elsewhere on
-    // the page (the browser moves focus/caret to the click point). For inputs
-    // used right after highlighting a quote — search, new-code-name — that
-    // would silently drop the pending selection before a code can be applied
-    // to it. Suppressing the native mousedown and focusing manually instead
-    // keeps the selection intact while still letting the input take focus.
-    function preserveSelectionOnFocus(el) {
-        el.addEventListener("mousedown", (e) => {
-            e.preventDefault();
-            el.focus();
-        });
-    }
 
     // ---- Draggable modals ----------------------------------------------------
     function makeDraggable(handle) {
@@ -127,7 +114,6 @@
     }
 
     [modalTitle, quotesModalTitle, quoteCodesModalTitle, aiApplyModalTitle, codebookPickerTitle].forEach(makeDraggable);
-    [codeSearchInput, newCodeName].forEach(preserveSelectionOnFocus);
 
     // ---- Persistence helpers ------------------------------------------------
     function loadCodes() {
@@ -208,8 +194,9 @@
                 chip.addEventListener("click", (e) => {
                     if (e.target.classList.contains("del") || e.target === swatch || e.target === colorInput) return;
                     if (pendingSelection) {
-                        addHighlightForCode(code, pendingSelection.start, pendingSelection.end, pendingSelection.text);
-                        pendingSelection = null;
+                        const { start, end, text } = pendingSelection;
+                        setPendingSelection(null);
+                        addHighlightForCode(code, start, end, text);
                         const sel = window.getSelection();
                         if (sel) sel.removeAllRanges();
                         return;
@@ -280,10 +267,32 @@
         return categories;
     }
 
-    function openCodeModal(name, color) {
-        pendingCode = { name, color };
+    function openCodeModal(name) {
+        pendingCode = { name };
         modalTitle.textContent = 'New code: "' + name + '"';
+        modalConfirmBtn.textContent = "Add code";
+        modalEditFields.style.display = "none";
+        modalColor.value = newCodeColor;
+        fillCategoryOptions("Newly added");
         modalDefinition.value = "";
+        modalBackdrop.style.display = "flex";
+        modalDefinition.focus();
+    }
+
+    function openEditCodeModal(code) {
+        editingCode = code;
+        modalTitle.textContent = 'Edit code: "' + code.name + '"';
+        modalConfirmBtn.textContent = "Save changes";
+        modalEditFields.style.display = "block";
+        modalName.value = code.name;
+        modalColor.value = code.color;
+        fillCategoryOptions(code.category || "Newly added");
+        modalDefinition.value = code.definition || "";
+        modalBackdrop.style.display = "flex";
+        modalName.focus();
+    }
+
+    function fillCategoryOptions(selected) {
         modalCategory.innerHTML = "";
         const categories = currentCategories();
         if (!categories.includes("Newly added")) categories.unshift("Newly added");
@@ -297,16 +306,15 @@
         newOpt.value = "__new__";
         newOpt.textContent = "+ New category…";
         modalCategory.appendChild(newOpt);
-        modalCategory.value = "Newly added";
+        modalCategory.value = selected;
         modalNewCategory.value = "";
         modalNewCategoryWrap.style.display = "none";
-        modalBackdrop.style.display = "flex";
-        modalDefinition.focus();
     }
 
     function closeCodeModal() {
         modalBackdrop.style.display = "none";
         pendingCode = null;
+        editingCode = null;
         resetModalPosition(modalTitle);
     }
 
@@ -437,10 +445,10 @@
         if (!e.target.closest(".code-chip")) hideCodeContextMenu();
     });
 
-    contextRenameCodeBtn.addEventListener("click", () => {
+    contextEditCodeBtn.addEventListener("click", () => {
         const code = contextMenuCode;
         hideCodeContextMenu();
-        if (code) renameCode(code);
+        if (code) openEditCodeModal(code);
     });
 
     contextApplyCodeBtn.addEventListener("click", () => {
@@ -566,6 +574,23 @@
 
     quoteCodesModalCloseBtn.addEventListener("click", closeQuoteCodesModal);
 
+    // Top-right "×" close button on every modal
+    [
+        [modalBackdrop, closeCodeModal],
+        [quotesModalBackdrop, closeQuotesModal],
+        [quoteCodesModalBackdrop, closeQuoteCodesModal],
+        [aiApplyModalBackdrop, closeAiApplyModal],
+        [codebookPickerBackdrop, closeCodebookPickerModal],
+    ].forEach(([backdrop, closeFn]) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "modal-close-x";
+        btn.setAttribute("aria-label", "Close");
+        btn.textContent = "\u00d7";
+        btn.addEventListener("click", closeFn);
+        backdrop.querySelector(".modal-box").appendChild(btn);
+    });
+
     document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
         if (modalBackdrop.style.display !== "none") closeCodeModal();
@@ -577,22 +602,28 @@
     });
 
     modalConfirmBtn.addEventListener("click", () => {
-        if (!pendingCode) return;
         let category = modalCategory.value;
         if (category === "__new__") {
             category = modalNewCategory.value.trim() || "Newly added";
         }
+        if (editingCode) {
+            saveCodeEdits(editingCode, category);
+            return;
+        }
+        if (!pendingCode) return;
         const id = "c" + Date.now() + Math.random().toString(36).slice(2, 7);
+        newCodeColor = modalColor.value;
         codes.push({
             id,
             name: pendingCode.name,
-            color: pendingCode.color,
+            color: newCodeColor,
             category,
             definition: modalDefinition.value.trim(),
             dateAdded: todayIso(),
         });
         saveCodes();
         newCodeName.value = "";
+        newCodeNameClearBtn.style.display = "none";
         closeCodeModal();
         renderCodeList();
     });
@@ -601,20 +632,86 @@
         e.preventDefault();
         const name = newCodeName.value.trim();
         if (!name) return;
-        openCodeModal(name, newCodeColor.value);
+        openCodeModal(name);
     });
 
-    codeSearchInput.addEventListener("input", () => {
+    // Shows the ✕ button while the input has text; clicking it empties the input.
+    function attachClearButton(input, clearBtn, onChange) {
+        input.addEventListener("input", () => {
+            clearBtn.style.display = input.value ? "block" : "none";
+            onChange();
+        });
+        clearBtn.addEventListener("click", () => {
+            input.value = "";
+            clearBtn.style.display = "none";
+            onChange();
+            input.focus();
+        });
+    }
+
+    attachClearButton(codeSearchInput, codeSearchClearBtn, () => {
         codeSearchTerm = codeSearchInput.value;
         renderCodeList();
     });
 
+    attachClearButton(newCodeName, newCodeNameClearBtn, () => {});
+
     // ---- Transcript loading ---------------------------------------------------
-    TRANSCRIPTS.forEach((t, i) => {
+    // Loaded transcripts keep their rendered HTML in localStorage so they stay
+    // in the dropdown (with their codings) after reload.
+    function loadUploadedTranscripts() {
+        try {
+            return JSON.parse(localStorage.getItem(UPLOADED_TRANSCRIPTS_KEY)) || [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveUploadedTranscripts() {
+        try {
+            localStorage.setItem(UPLOADED_TRANSCRIPTS_KEY, JSON.stringify(TRANSCRIPTS));
+        } catch (e) {
+            alert("This transcript is too large to remember after a reload. It will work for now, but you will need to load it again next time.");
+        }
+    }
+
+    function addTranscriptOption(t, i) {
         const opt = document.createElement("option");
         opt.value = String(i);
         opt.textContent = t.label;
         transcriptSelect.appendChild(opt);
+    }
+
+    TRANSCRIPTS.push(...loadUploadedTranscripts());
+    TRANSCRIPTS.forEach(addTranscriptOption);
+
+    loadTranscriptBtn.addEventListener("click", () => loadTranscriptInput.click());
+
+    loadTranscriptInput.addEventListener("change", async () => {
+        const file = loadTranscriptInput.files[0];
+        loadTranscriptInput.value = "";
+        if (!file) return;
+        const type = /\.docx$/i.test(file.name) ? "docx" : "txt";
+        let html;
+        try {
+            html = type === "docx"
+                ? await docxToHtml(await file.arrayBuffer())
+                : textToHtml(await file.text());
+        } catch (err) {
+            alert("Could not read that file: " + err.message);
+            return;
+        }
+        let entry = TRANSCRIPTS.find((t) => t.file === file.name);
+        if (entry) {
+            entry.html = html;
+        } else {
+            entry = { label: file.name.replace(/\.(docx|txt)$/i, ""), file: file.name, type, html };
+            TRANSCRIPTS.push(entry);
+            addTranscriptOption(entry, TRANSCRIPTS.length - 1);
+        }
+        saveUploadedTranscripts();
+        transcriptSelect.value = String(TRANSCRIPTS.indexOf(entry));
+        loadTranscript(entry);
     });
 
     transcriptSelect.addEventListener("change", () => {
@@ -809,38 +906,27 @@
         }
     });
 
+    async function docxToHtml(arrayBuffer) {
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        if (result.messages && result.messages.length) {
+            console.warn("mammoth messages:", result.messages);
+        }
+        return result.value || "<p><em>(empty document)</em></p>";
+    }
+
+    function textToHtml(text) {
+        return text
+            .split(/\r?\n/)
+            .map((line) => (line.trim() ? "<p>" + escapeHtml(line) + "</p>" : ""))
+            .join("");
+    }
+
     async function loadTranscript(entry) {
         currentFile = entry.file;
         pendingSelection = null;
         transcriptPane.innerHTML = '<p class="placeholder">Loading “' + entry.label + '”…</p>';
         statusEl.textContent = "";
-        const url = "transcripts/" + encodeURIComponent(entry.file);
-        try {
-            if (entry.type === "docx") {
-                const resp = await fetch(url);
-                if (!resp.ok) throw new Error("HTTP " + resp.status);
-                const buf = await resp.arrayBuffer();
-                const result = await mammoth.convertToHtml({ arrayBuffer: buf });
-                transcriptPane.innerHTML = result.value || "<p><em>(empty document)</em></p>";
-                if (result.messages && result.messages.length) {
-                    console.warn("mammoth messages:", result.messages);
-                }
-            } else {
-                const resp = await fetch(url);
-                if (!resp.ok) throw new Error("HTTP " + resp.status);
-                const text = await resp.text();
-                transcriptPane.innerHTML = text
-                    .split(/\r?\n/)
-                    .map((line) => (line.trim() ? "<p>" + escapeHtml(line) + "</p>" : ""))
-                    .join("");
-            }
-        } catch (err) {
-            transcriptPane.innerHTML =
-                '<p class="placeholder">Could not load this file: ' + escapeHtml(err.message) +
-                '. Make sure you are viewing this page through a local web server (not opened directly as a file), ' +
-                "and that the file exists in the transcripts/ folder.</p>";
-            return;
-        }
+        transcriptPane.innerHTML = entry.html;
         applySavedHighlights();
         renderCodingsList();
         statusEl.textContent = "Loaded: " + entry.file;
@@ -936,16 +1022,35 @@
         renderCodingsList();
     }
 
-    function renameCode(code) {
-        const newName = prompt('Rename code "' + code.name + '" to:', code.name);
-        if (newName === null) return;
-        const trimmed = newName.trim();
-        if (!trimmed || trimmed === code.name) return;
+    function saveCodeEdits(code, category) {
+        const trimmed = modalName.value.trim();
+        if (!trimmed) {
+            alert("The code name can't be empty.");
+            return;
+        }
         const collision = codes.find((c) => c.id !== code.id && c.name === trimmed);
         if (collision) {
             alert('A code named "' + trimmed + '" already exists. Choose a different name.');
             return;
         }
+        const renamed = trimmed !== code.name;
+        const recolored = modalColor.value !== code.color;
+        code.definition = modalDefinition.value.trim();
+        code.category = category;
+        code.color = modalColor.value;
+        if (renamed) {
+            renameCode(code, trimmed);
+        } else {
+            saveCodes();
+        }
+        if (recolored) updateHighlightColorsForCode(code);
+        closeCodeModal();
+        renderCodeList();
+        renderCodingsList();
+        statusEl.textContent = 'Saved changes to code "' + trimmed + '".';
+    }
+
+    function renameCode(code, trimmed) {
         code.name = trimmed;
         saveCodes();
         TRANSCRIPTS.forEach((t) => {
@@ -962,9 +1067,6 @@
         transcriptPane.querySelectorAll('mark[data-code-id="' + code.id + '"]').forEach((m) => {
             m.setAttribute("title", trimmed);
         });
-        renderCodeList();
-        renderCodingsList();
-        statusEl.textContent = 'Renamed code to "' + trimmed + '" across all transcripts.';
     }
 
     function updateHighlightColorsForCode(code) {
@@ -996,30 +1098,52 @@
         renderCodingsList();
     }
 
+    // The pending selection gets its own visual marker in the transcript,
+    // independent of the browser's native text selection. Native selection
+    // disappears the moment focus moves elsewhere (e.g. clicking into the code
+    // search box or the new-code-name field), which would otherwise make it
+    // look like the selection was lost right when the user needs it most —
+    // right before picking a code to apply it to.
+    function clearPendingSelectionMarker() {
+        transcriptPane.querySelectorAll("mark.pending-selection").forEach((m) => {
+            const parent = m.parentNode;
+            while (m.firstChild) parent.insertBefore(m.firstChild, m);
+            parent.removeChild(m);
+            parent.normalize();
+        });
+    }
+
+    function setPendingSelection(sel) {
+        pendingSelection = sel;
+        clearPendingSelectionMarker();
+        if (sel) wrapOffsets(transcriptPane, sel.start, sel.end, { class: "pending-selection" });
+    }
+
     transcriptPane.addEventListener("mouseup", () => {
         const sel = window.getSelection();
         if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
-            pendingSelection = null;
+            setPendingSelection(null);
             return;
         }
         const range = sel.getRangeAt(0);
         if (!transcriptPane.contains(range.commonAncestorContainer)) return;
         const text = range.toString();
-        if (!text.trim()) { pendingSelection = null; return; }
+        if (!text.trim()) { setPendingSelection(null); return; }
         const { start, end } = getOffsets(transcriptPane, range);
-        if (start === null || end === null || end <= start) { pendingSelection = null; return; }
+        if (start === null || end === null || end <= start) { setPendingSelection(null); return; }
 
         if (activeCodeId) {
             const code = codes.find((c) => c.id === activeCodeId);
             if (code) {
                 addHighlightForCode(code, start, end, text);
                 sel.removeAllRanges();
-                pendingSelection = null;
+                setPendingSelection(null);
                 return;
             }
         }
         // No active code: remember this selection so clicking a code next applies it here.
-        pendingSelection = { start, end, text };
+        setPendingSelection({ start, end, text });
+        sel.removeAllRanges();
     });
 
     transcriptPane.addEventListener("click", (e) => {
