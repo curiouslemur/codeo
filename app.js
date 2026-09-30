@@ -654,7 +654,7 @@
         renderCodeList();
     });
 
-    attachClearButton(newCodeName, newCodeNameClearBtn, () => {});
+    attachClearButton(newCodeName, newCodeNameClearBtn, () => { });
 
     // ---- Transcript loading ---------------------------------------------------
     // Loaded transcripts keep their rendered HTML in localStorage so they stay
