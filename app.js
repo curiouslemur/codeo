@@ -1349,7 +1349,7 @@
     }
 
     exportBtn.addEventListener("click", () => {
-        downloadCsv(buildCodingsCsv(TRANSCRIPTS), "transcript-codings.csv");
+        downloadCsv(buildCodingsCsv(TRANSCRIPTS), filenameTimestamp() + "-transcript-codings.csv");
     });
 
     exportTranscriptBtn.addEventListener("click", () => {
@@ -1363,8 +1363,32 @@
         downloadCsv(csv, filename);
     });
 
+    // "4 - Karen (17), 3 - Scott (10)": transcripts using the code, most uses first.
+    function transcriptUsageByCode() {
+        const usage = new Map();
+        TRANSCRIPTS.forEach((t) => {
+            loadHighlights(t.file).forEach((h) => {
+                if (!usage.has(h.codeName)) usage.set(h.codeName, new Map());
+                const perFile = usage.get(h.codeName);
+                perFile.set(t.label, (perFile.get(t.label) || 0) + 1);
+            });
+        });
+        const summaries = new Map();
+        usage.forEach((perFile, codeName) => {
+            summaries.set(
+                codeName,
+                [...perFile]
+                    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+                    .map(([label, n]) => label + " (" + n + ")")
+                    .join(", ")
+            );
+        });
+        return summaries;
+    }
+
     function buildCodebookCsv() {
-        const rows = [["Code", "Definition", "Category", "Color", "First time used in", "Date added"]].concat(
+        const usage = transcriptUsageByCode();
+        const rows = [["Code", "Definition", "Category", "Color", "First time used in", "Date added", "Transcripts"]].concat(
             codes.map((c) => [
                 c.name,
                 c.definition || "",
@@ -1372,6 +1396,7 @@
                 c.color || "",
                 c.firstUsedIn || "",
                 c.dateAdded || "",
+                usage.get(c.name) || "",
             ])
         );
         return rows
@@ -1379,7 +1404,8 @@
             .join("\n");
     }
 
-    function suggestedCodebookFilename() {
+    // "yymmdd-hhmin" timestamp shared by exported filenames.
+    function filenameTimestamp() {
         const now = new Date();
         const pad = (n) => String(n).padStart(2, "0");
         const yy = pad(now.getFullYear() % 100);
@@ -1387,7 +1413,10 @@
         const dd = pad(now.getDate());
         const hh = pad(now.getHours());
         const min = pad(now.getMinutes());
-        return yy + mm + dd + "-" + hh + min + "-codebook.csv";
+        return yy + mm + dd + "-" + hh + min;
+    }
+    function suggestedCodebookFilename() {
+        return filenameTimestamp() + "-codebook.csv";
     }
 
     saveCodebookBtn.addEventListener("click", async () => {
