@@ -4,7 +4,9 @@
     const passwordInput = document.getElementById("password-input");
     const passwordError = document.getElementById("password-error");
 
-    document.body.classList.remove("authenticated");
+    // Skip the password gate when served locally (e.g. via server.py).
+    const isLocalhost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(location.hostname);
+    document.body.classList.toggle("authenticated", isLocalhost);
     passwordForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         const bytes = new TextEncoder().encode(passwordInput.value);
@@ -50,6 +52,7 @@
     const codeListEl = document.getElementById("code-list");
     const activeCodeBanner = document.getElementById("active-code-banner");
     const codingsListEl = document.getElementById("codings-list");
+    const codeFreqChartEl = document.getElementById("code-freq-chart");
     const clearBtn = document.getElementById("clear-transcript-btn");
     const exportBtn = document.getElementById("export-btn");
     const exportTranscriptBtn = document.getElementById("export-transcript-btn");
@@ -269,6 +272,7 @@
         activeCodeBanner.innerHTML = activeCodeId
             ? "Active code: <strong>" + escapeHtml(codes.find((c) => c.id === activeCodeId).name) + "</strong> — select text in the transcript to apply it."
             : "Highlight text, then click a code to apply it. Click a code with nothing selected to see its quotes.";
+        renderCodeFrequencyChart();
     }
 
     function moveCodeToCategory(id, cat) {
@@ -1180,7 +1184,100 @@
         openQuoteCodesModal(highlightIds);
     });
 
+    // ---- Code frequency heatmap -----------------------------------------------
+    // Rows are codes; columns are the open transcript, then every other
+    // transcript, then the total. Cell shade scales with the count (blue
+    // gradient, shared scale across all per-transcript cells).
+    function heatColor(n, max) {
+        if (!n) return null;
+        const t = n / max;
+        const light = [222, 235, 252];
+        const dark = [24, 72, 160];
+        const rgb = light.map((l, i) => Math.round(l + (dark[i] - l) * t));
+        return { bg: "rgb(" + rgb.join(",") + ")", fg: t > 0.5 ? "#fff" : "#1b2b4a" };
+    }
+
+    function renderCodeFrequencyChart() {
+        const current = TRANSCRIPTS.find((t) => t.file === currentFile);
+        const columns = (current ? [current] : []).concat(TRANSCRIPTS.filter((t) => t !== current));
+
+        const counts = new Map();
+        const rowFor = (name) => {
+            if (!counts.has(name)) counts.set(name, { name, cells: columns.map(() => 0), total: 0 });
+            return counts.get(name);
+        };
+        codes.forEach((c) => rowFor(c.name));
+        columns.forEach((t, col) => {
+            loadHighlights(t.file).forEach((h) => {
+                const row = rowFor(h.codeName);
+                row.cells[col]++;
+                row.total++;
+            });
+        });
+
+        const rows = [...counts.values()].sort(
+            (a, b) => b.total - a.total || (b.cells[0] || 0) - (a.cells[0] || 0) || a.name.localeCompare(b.name)
+        );
+        if (!rows.length) {
+            codeFreqChartEl.innerHTML = '<p class="empty-note">No codes yet.</p>';
+            return;
+        }
+        const max = Math.max(1, ...rows.flatMap((r) => r.cells));
+
+        const table = document.createElement("table");
+        table.className = "freq-table";
+        const headRow = table.createTHead().insertRow();
+        const addTh = (text, title, className) => {
+            const th = document.createElement("th");
+            th.textContent = text;
+            if (title) th.title = title;
+            if (className) th.className = className;
+            headRow.appendChild(th);
+        };
+        addTh("Code", "", "code-col");
+        columns.forEach((t) => {
+            const isCurrent = t === current;
+            addTh(isCurrent ? "This transcript" : t.label, t.label, isCurrent ? "current-col" : "");
+        });
+        addTh("Total", "Across all transcripts", "total-col");
+
+        const body = table.createTBody();
+        rows.forEach((r) => {
+            const code = codes.find((c) => c.name === r.name);
+            const tr = body.insertRow();
+            if (!r.total) tr.className = "unused";
+            const nameCell = tr.insertCell();
+            nameCell.className = "code-col";
+            nameCell.innerHTML = '<span class="swatch"></span><span class="name"></span>';
+            nameCell.querySelector(".swatch").style.background = code ? code.color : "#ccc";
+            nameCell.querySelector(".name").textContent = r.name;
+            nameCell.title = r.name;
+            if (code) {
+                nameCell.classList.add("clickable");
+                nameCell.addEventListener("click", () => openQuotesModal(code));
+            }
+            r.cells.forEach((n, col) => {
+                const td = tr.insertCell();
+                td.className = "heat-cell";
+                td.textContent = n;
+                td.title = r.name + " — " + n + " in " + columns[col].label;
+                const color = heatColor(n, max);
+                if (color) {
+                    td.style.background = color.bg;
+                    td.style.color = color.fg;
+                }
+            });
+            const totalCell = tr.insertCell();
+            totalCell.className = "total-col";
+            totalCell.textContent = r.total;
+        });
+
+        codeFreqChartEl.innerHTML = "";
+        codeFreqChartEl.appendChild(table);
+    }
+
     function renderCodingsList() {
+        renderCodeFrequencyChart();
         const list = currentFile ? loadHighlights(currentFile).sort((a, b) => a.start - b.start) : [];
         if (!list.length) {
             codingsListEl.innerHTML = '<p class="empty-note">Nothing coded yet.</p>';
