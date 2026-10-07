@@ -3,16 +3,53 @@
     const passwordForm = document.getElementById("password-form");
     const passwordInput = document.getElementById("password-input");
     const passwordError = document.getElementById("password-error");
+    const passwordField = document.getElementById("password-field");
+    const usernameInput = document.getElementById("username-input");
+    const userBtn = document.getElementById("user-btn");
 
-    // Skip the password gate when served locally (e.g. via server.py).
+    // The username labels my side when comparing with someone else's coding.
+    const USERNAME_KEY = "transcript-coder:username";
+    let username = localStorage.getItem(USERNAME_KEY) || "";
+    usernameInput.value = username;
+
+    function setUsername(name) {
+        username = name;
+        localStorage.setItem(USERNAME_KEY, name);
+        userBtn.textContent = "Coder: " + name;
+    }
+    if (username) setUsername(username);
+
+    userBtn.addEventListener("click", () => {
+        const name = (prompt("Your username:", username) || "").trim();
+        if (name) setUsername(name);
+    });
+
+    // Skip the password when served locally (e.g. via server.py); the gate
+    // then only asks for a username, and only if none is saved yet.
     const isLocalhost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(location.hostname);
-    document.body.classList.toggle("authenticated", isLocalhost);
+    if (isLocalhost) {
+        passwordField.style.display = "none";
+        passwordInput.required = false;
+    }
+    document.body.classList.toggle("authenticated", isLocalhost && !!username);
     passwordForm.addEventListener("submit", async (event) => {
         event.preventDefault();
+        const name = usernameInput.value.trim();
+        if (!name) {
+            passwordError.textContent = "Enter a username.";
+            usernameInput.focus();
+            return;
+        }
+        if (isLocalhost) {
+            setUsername(name);
+            document.body.classList.add("authenticated");
+            return;
+        }
         const bytes = new TextEncoder().encode(passwordInput.value);
         const digest = await crypto.subtle.digest("SHA-256", bytes);
         const enteredHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
         if (enteredHash === PASSWORD_HASH) {
+            setUsername(name);
             document.body.classList.add("authenticated");
             passwordError.textContent = "";
             passwordInput.value = "";
@@ -298,14 +335,25 @@
         return categories;
     }
 
-    function openCodeModal(name) {
-        pendingCode = { name };
+    // `prefill` (optional) starts the form from another coder's code:
+    // { color, category, definition, onClose }. onClose runs when the modal
+    // closes, whether the code was added or not.
+    function openCodeModal(name, prefill) {
+        prefill = prefill || {};
+        pendingCode = { name, fromPrefill: !!prefill.color, onClose: prefill.onClose };
         modalTitle.textContent = 'New code: "' + name + '"';
         modalConfirmBtn.textContent = "Add code";
         modalEditFields.style.display = "none";
-        modalColor.value = newCodeColor;
-        fillCategoryOptions("Newly added");
-        modalDefinition.value = "";
+        modalColor.value = prefill.color || newCodeColor;
+        const category = prefill.category || "Newly added";
+        fillCategoryOptions(category);
+        if (modalCategory.value !== category) {
+            // Their category isn't one of mine yet: offer it as a new one.
+            modalCategory.value = "__new__";
+            modalNewCategory.value = category;
+            modalNewCategoryWrap.style.display = "block";
+        }
+        modalDefinition.value = prefill.definition || "";
         modalBackdrop.style.display = "flex";
         modalDefinition.focus();
     }
@@ -344,9 +392,11 @@
 
     function closeCodeModal() {
         modalBackdrop.style.display = "none";
+        const onClose = pendingCode && pendingCode.onClose;
         pendingCode = null;
         editingCode = null;
         resetModalPosition(modalTitle);
+        if (onClose) onClose();
     }
 
     function openQuotesModal(code) {
@@ -606,13 +656,7 @@
     quoteCodesModalCloseBtn.addEventListener("click", closeQuoteCodesModal);
 
     // Top-right "×" close button on every modal
-    [
-        [modalBackdrop, closeCodeModal],
-        [quotesModalBackdrop, closeQuotesModal],
-        [quoteCodesModalBackdrop, closeQuoteCodesModal],
-        [aiApplyModalBackdrop, closeAiApplyModal],
-        [codebookPickerBackdrop, closeCodebookPickerModal],
-    ].forEach(([backdrop, closeFn]) => {
+    function addModalCloseButton(backdrop, closeFn) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "modal-close-x";
@@ -620,7 +664,14 @@
         btn.textContent = "\u00d7";
         btn.addEventListener("click", closeFn);
         backdrop.querySelector(".modal-box").appendChild(btn);
-    });
+    }
+    [
+        [modalBackdrop, closeCodeModal],
+        [quotesModalBackdrop, closeQuotesModal],
+        [quoteCodesModalBackdrop, closeQuoteCodesModal],
+        [aiApplyModalBackdrop, closeAiApplyModal],
+        [codebookPickerBackdrop, closeCodebookPickerModal],
+    ].forEach(([backdrop, closeFn]) => addModalCloseButton(backdrop, closeFn));
 
     document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
@@ -643,20 +694,22 @@
         }
         if (!pendingCode) return;
         const id = "c" + Date.now() + Math.random().toString(36).slice(2, 7);
-        newCodeColor = modalColor.value;
+        if (!pendingCode.fromPrefill) {
+            newCodeColor = modalColor.value;
+            newCodeName.value = "";
+            newCodeNameClearBtn.style.display = "none";
+        }
         codes.push({
             id,
             name: pendingCode.name,
-            color: newCodeColor,
+            color: modalColor.value,
             category,
             definition: modalDefinition.value.trim(),
             dateAdded: todayIso(),
         });
         saveCodes();
-        newCodeName.value = "";
-        newCodeNameClearBtn.style.display = "none";
-        closeCodeModal();
         renderCodeList();
+        closeCodeModal();
     });
 
     codeForm.addEventListener("submit", (e) => {
@@ -1059,6 +1112,7 @@
     }
 
     async function loadTranscript(entry) {
+        compare.exit();
         currentFile = entry.file;
         pendingSelection = null;
         transcriptPane.innerHTML = '<p class="placeholder">Loading “' + entry.label + '”…</p>';
@@ -1252,6 +1306,8 @@
 
     function setPendingSelection(sel) {
         pendingSelection = sel;
+        // While comparing, selecting my text brings up the codes panel.
+        if (sel && compare.isActive()) compare.openSidePane();
         clearPendingSelectionMarker();
         if (sel) wrapOffsets(transcriptPane, sel.start, sel.end, { class: "pending-selection" });
     }
@@ -1390,6 +1446,7 @@
 
     function renderCodingsList() {
         renderCodeFrequencyChart();
+        if (compare.isActive()) compare.refresh();
         const list = currentFile ? loadHighlights(currentFile).sort((a, b) => a.start - b.start) : [];
         if (!list.length) {
             codingsListEl.innerHTML = '<p class="empty-note">Nothing coded yet.</p>';
@@ -1739,6 +1796,34 @@
                 preview + more
             );
         }
+    });
+
+    // ---- Compare with someone else's coding (see compare.js) -----------------
+    const compare = setupCompare({
+        get codes() { return codes; },
+        get currentFile() { return currentFile; },
+        get username() { return username; },
+        TRANSCRIPTS,
+        CATEGORY_COLORS,
+        transcriptPane,
+        transcriptSelect,
+        statusEl,
+        quotesModal: { backdrop: quotesModalBackdrop, title: quotesModalTitle, list: quotesModalList },
+        quoteCodesModal: { backdrop: quoteCodesModalBackdrop, title: quoteCodesModalTitle, list: quoteCodesModalList },
+        closeQuoteCodesModal,
+        openCodeModal,
+        makeDraggable,
+        resetModalPosition,
+        addModalCloseButton,
+        loadTranscript,
+        loadHighlights,
+        wrapOffsets,
+        highlightStyle,
+        escapeHtml,
+        parseCsv,
+        codesFromCsvRows,
+        stripQuoteMarks,
+        locateQuote,
     });
 
     renderCodeList();

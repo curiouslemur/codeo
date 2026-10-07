@@ -13,8 +13,12 @@
     <div id="password-gate">
         <form id="password-form" class="password-box">
             <h1>Codeo</h1>
-            <label for="password-input">Password</label>
-            <input type="password" id="password-input" autocomplete="current-password" required autofocus>
+            <label for="username-input">Username</label>
+            <input type="text" id="username-input" autocomplete="username" maxlength="40" required autofocus>
+            <div id="password-field">
+                <label for="password-input">Password</label>
+                <input type="password" id="password-input" autocomplete="current-password" required>
+            </div>
             <p id="password-error" role="alert" aria-live="polite"></p>
             <button type="submit" class="btn primary">Unlock</button>
         </form>
@@ -30,6 +34,7 @@
                 title="Open a .docx or .txt transcript from your computer">Load transcript…</button>
             <input type="file" id="load-transcript-input" accept=".docx,.txt,text/plain" style="display:none;">
             <span id="status"></span>
+            <button type="button" class="rq-add-btn" id="user-btn" title="Change your username"></button>
         </div>
         <div id="research-questions">
             <div id="rq-list"></div>
@@ -40,6 +45,26 @@
         </div>
     </header>
 
+    <div id="compare-bar" style="display:none;">
+        <div class="compare-col">
+            <strong id="compare-mine-label">My coding</strong>
+            <span id="compare-mine-count"></span>
+        </div>
+        <div class="compare-col">
+            <strong id="compare-theirs-label">Their coding</strong>
+            <span id="compare-theirs-count"></span>
+            <div class="compare-tools">
+                <label title="Outline codings that the other coder did not also apply (same code, overlapping text)">
+                    <input type="checkbox" id="compare-diffs-toggle"> Outline differences
+                </label>
+                <button type="button" class="btn" id="compare-side-btn"
+                    title="Show the codes panel so you can code your transcript (left) while comparing">Show codes panel</button>
+                <button type="button" class="btn" id="compare-summary-btn">Code-by-code summary</button>
+                <button type="button" class="btn" id="compare-exit-btn">Exit comparison</button>
+            </div>
+        </div>
+    </div>
+
     <div id="layout">
         <div id="transcript-pane">
             <p class="placeholder">Click “Load transcript…” above to open a .docx or .txt transcript from your
@@ -47,6 +72,8 @@
                 code on the right to apply it. Clicking a code with nothing selected shows every quote coded with it.
             </p>
         </div>
+
+        <div id="compare-pane" style="display:none;"></div>
 
         <div id="side-pane">
             <div class="panel">
@@ -146,6 +173,32 @@
             </div>
             <input type="file" id="codebook-picker-file-input" accept=".csv,text/csv" style="display:none;">
 
+            <div id="compare-modal-backdrop" class="modal-backdrop" style="display:none;">
+                <div class="modal-box">
+                    <h3 id="compare-modal-title">Compare with someone else's coding</h3>
+                    <p class="modal-help">Load the codebook and codings CSV they sent you. The transcript opens twice,
+                        side by side: your codings on the left, theirs on the right. Their files are only shown, not
+                        saved, and your own codes are not changed.</p>
+                    <label class="modal-field">
+                        Their name
+                        <input type="text" id="compare-name-input" maxlength="40" placeholder="e.g. Zahra">
+                    </label>
+                    <label class="modal-field">
+                        Their codebook (.csv, optional: gives their colors and definitions)
+                        <input type="file" id="compare-codebook-input" accept=".csv,text/csv">
+                    </label>
+                    <label class="modal-field">
+                        Their codings (.csv)
+                        <input type="file" id="compare-codings-input" accept=".csv,text/csv">
+                    </label>
+                    <p id="compare-modal-note" class="modal-help"></p>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" id="compare-cancel-btn">Cancel</button>
+                        <button type="button" class="btn primary" id="compare-confirm-btn">Compare</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel">
                 <h2>Codings in this transcript</h2>
                 <div id="codings-list">
@@ -169,6 +222,9 @@
                     <button class="btn" id="clear-transcript-btn">Clear this transcript's codings</button>
                     <button class="btn" id="export-transcript-btn">Export this transcript's codings</button>
                     <button class="btn" id="export-btn">Export all codings (CSV)</button>
+                    <button class="btn" id="compare-btn"
+                        title="Load another coder's codebook and codings CSV and view them next to yours on the same transcript.">Compare
+                        with someone else's coding…</button>
                     <button class="btn" id="save-codebook-btn"
                         title="Exports the current code list as a CSV. Suggested filename: yymmdd-hhmin-codebook.csv.">Save
                         codebook (.csv)</button>
@@ -178,6 +234,7 @@
         </div>
     </div>
 
+    <script src="compare.js"></script>
     <script src="app.js"></script>
 </body>
 

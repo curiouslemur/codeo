@@ -26,7 +26,7 @@ jobs:
       - name: Collect static site files
         run: |
           mkdir _site
-          cp index.html app.js styles.css _site/
+          cp index.html app.js compare.js styles.css _site/
 
       - uses: actions/configure-pages@v5
 
