@@ -36,11 +36,6 @@
     const CODES_KEY = "transcript-coder:codes";
     const UPLOADED_TRANSCRIPTS_KEY = "transcript-coder:uploaded-transcripts";
     const RESEARCH_QUESTIONS_KEY = "transcript-coder:research-questions";
-    const DEFAULT_RESEARCH_QUESTIONS = [
-        "How do organizations implementing multidimensional assessment collect participant information?",
-        "How is that data analysed and used to support participants and organizations?",
-        "How can HCI researchers support participatory multidimensional assessment and the people who administer it?",
-    ];
     const highlightsKey = (file) => "transcript-coder:highlights:" + file;
 
     const transcriptSelect = document.getElementById("transcript-select");
@@ -98,6 +93,8 @@
     const codebookPickerFileInput = document.getElementById("codebook-picker-file-input");
     const rqListEl = document.getElementById("rq-list");
     const rqAddBtn = document.getElementById("rq-add-btn");
+    const rqLoadBtn = document.getElementById("rq-load-btn");
+    const rqLoadInput = document.getElementById("rq-load-input");
     let researchQuestions = loadResearchQuestions();
     let contextMenuCode = null;
     let aiSuggestions = [];
@@ -699,7 +696,7 @@
             const list = JSON.parse(localStorage.getItem(RESEARCH_QUESTIONS_KEY));
             if (Array.isArray(list)) return list;
         } catch (e) { }
-        return DEFAULT_RESEARCH_QUESTIONS.slice();
+        return [];
     }
 
     function saveResearchQuestions() {
@@ -708,6 +705,12 @@
 
     function renderResearchQuestions(focusIndex) {
         rqListEl.innerHTML = "";
+        if (!researchQuestions.length) {
+            const hint = document.createElement("span");
+            hint.className = "rq-empty-note";
+            hint.textContent = "No research questions yet. Add them one at a time, or load a .txt file with one question per line.";
+            rqListEl.appendChild(hint);
+        }
         researchQuestions.forEach((text, i) => {
             const item = document.createElement("span");
             item.className = "rq-item";
@@ -762,6 +765,30 @@
         researchQuestions.push("");
         saveResearchQuestions();
         renderResearchQuestions(researchQuestions.length - 1);
+    });
+
+    // Loads a .txt file with one research question per line, replacing the
+    // current list. Blank lines and leading "RQ1:" / "1." labels are dropped.
+    rqLoadBtn.addEventListener("click", () => rqLoadInput.click());
+
+    rqLoadInput.addEventListener("change", async () => {
+        const file = rqLoadInput.files[0];
+        rqLoadInput.value = "";
+        if (!file) return;
+        const lines = (await file.text())
+            .split(/\r?\n/)
+            .map((line) => line.replace(/^\s*(RQ\s*\d+\s*[:.)\-]?|\d+\s*[:.)\-])\s*/i, "").replace(/\s+/g, " ").trim())
+            .filter(Boolean);
+        if (!lines.length) {
+            alert("No research questions found in " + file.name + ". Put one question per line.");
+            return;
+        }
+        if (researchQuestions.some(Boolean) &&
+            !confirm("Replace the current " + researchQuestions.length + " research question(s) with the " + lines.length + " in " + file.name + "?")) return;
+        researchQuestions = lines;
+        saveResearchQuestions();
+        renderResearchQuestions();
+        statusEl.textContent = "Loaded " + lines.length + " research question(s) from " + file.name + ".";
     });
 
     renderResearchQuestions();
