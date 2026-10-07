@@ -131,8 +131,75 @@ header select {
     color: var(--muted);
 }
 
+#research-questions {
+    align-items: flex-start;
+}
+
+#rq-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 24px;
+}
+
 #research-questions strong {
     color: var(--text);
+}
+
+.rq-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+}
+
+.rq-text {
+    padding: 0 3px;
+    border-radius: 3px;
+    outline: none;
+    cursor: text;
+}
+
+.rq-text:hover {
+    background: var(--bg);
+}
+
+.rq-text:focus {
+    background: var(--panel);
+    box-shadow: 0 0 0 1px var(--accent);
+    color: var(--text);
+}
+
+.rq-text:empty::before {
+    content: attr(data-placeholder);
+    font-style: italic;
+    opacity: 0.6;
+}
+
+.rq-delete-btn,
+.rq-add-btn {
+    border: none;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.rq-delete-btn {
+    font-size: 10px;
+    visibility: hidden;
+}
+
+.rq-item:hover .rq-delete-btn,
+.rq-item:focus-within .rq-delete-btn {
+    visibility: visible;
+}
+
+.rq-delete-btn:hover {
+    color: #c0392b;
+}
+
+.rq-add-btn:hover {
+    color: var(--accent);
 }
 
 #layout {

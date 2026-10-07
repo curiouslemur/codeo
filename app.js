@@ -35,6 +35,12 @@
 
     const CODES_KEY = "transcript-coder:codes";
     const UPLOADED_TRANSCRIPTS_KEY = "transcript-coder:uploaded-transcripts";
+    const RESEARCH_QUESTIONS_KEY = "transcript-coder:research-questions";
+    const DEFAULT_RESEARCH_QUESTIONS = [
+        "How do organizations implementing multidimensional assessment collect participant information?",
+        "How is that data analysed and used to support participants and organizations?",
+        "How can HCI researchers support participatory multidimensional assessment and the people who administer it?",
+    ];
     const highlightsKey = (file) => "transcript-coder:highlights:" + file;
 
     const transcriptSelect = document.getElementById("transcript-select");
@@ -90,6 +96,9 @@
     const codebookPickerTitle = document.getElementById("codebook-picker-title");
     const codebookPickerList = document.getElementById("codebook-picker-list");
     const codebookPickerFileInput = document.getElementById("codebook-picker-file-input");
+    const rqListEl = document.getElementById("rq-list");
+    const rqAddBtn = document.getElementById("rq-add-btn");
+    let researchQuestions = loadResearchQuestions();
     let contextMenuCode = null;
     let aiSuggestions = [];
     let pendingCode = null;
@@ -680,6 +689,82 @@
     });
 
     attachClearButton(newCodeName, newCodeNameClearBtn, () => { });
+
+    // ---- Research questions -------------------------------------------------
+    // Shown in the header; click a question to edit it in place. Stored in
+    // localStorage so edits survive a reload.
+
+    function loadResearchQuestions() {
+        try {
+            const list = JSON.parse(localStorage.getItem(RESEARCH_QUESTIONS_KEY));
+            if (Array.isArray(list)) return list;
+        } catch (e) { }
+        return DEFAULT_RESEARCH_QUESTIONS.slice();
+    }
+
+    function saveResearchQuestions() {
+        localStorage.setItem(RESEARCH_QUESTIONS_KEY, JSON.stringify(researchQuestions));
+    }
+
+    function renderResearchQuestions(focusIndex) {
+        rqListEl.innerHTML = "";
+        researchQuestions.forEach((text, i) => {
+            const item = document.createElement("span");
+            item.className = "rq-item";
+
+            const label = document.createElement("strong");
+            label.textContent = "RQ" + (i + 1);
+
+            const textEl = document.createElement("span");
+            textEl.className = "rq-text";
+            textEl.contentEditable = "plaintext-only";
+            textEl.spellcheck = true;
+            textEl.title = "Click to edit";
+            textEl.dataset.placeholder = "Type a research question…";
+            textEl.textContent = text;
+            textEl.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    textEl.blur();
+                } else if (e.key === "Escape") {
+                    textEl.textContent = researchQuestions[i];
+                    textEl.blur();
+                }
+            });
+            textEl.addEventListener("blur", () => {
+                const value = textEl.textContent.replace(/\s+/g, " ").trim();
+                textEl.textContent = value;
+                if (value === researchQuestions[i]) return;
+                researchQuestions[i] = value;
+                saveResearchQuestions();
+            });
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.type = "button";
+            deleteBtn.className = "rq-delete-btn";
+            deleteBtn.title = "Delete RQ" + (i + 1);
+            deleteBtn.textContent = "✕";
+            deleteBtn.addEventListener("click", () => {
+                if (researchQuestions[i] && !confirm("Delete RQ" + (i + 1) + "?\n\n" + researchQuestions[i])) return;
+                researchQuestions.splice(i, 1);
+                saveResearchQuestions();
+                renderResearchQuestions();
+            });
+
+            item.append(label, ": ", textEl, deleteBtn);
+            rqListEl.appendChild(item);
+
+            if (i === focusIndex) textEl.focus();
+        });
+    }
+
+    rqAddBtn.addEventListener("click", () => {
+        researchQuestions.push("");
+        saveResearchQuestions();
+        renderResearchQuestions(researchQuestions.length - 1);
+    });
+
+    renderResearchQuestions();
 
     // ---- Transcript loading ---------------------------------------------------
     // Loaded transcripts keep their rendered HTML in localStorage so they stay
