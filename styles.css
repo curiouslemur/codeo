@@ -565,6 +565,15 @@ mark.pending-selection {
     pointer-events: none;
 }
 
+/* Modal opened on top of another one: raised and offset so the one below shows. */
+.modal-backdrop.stacked {
+    z-index: 1001;
+}
+
+.modal-backdrop.stacked .modal-box {
+    margin: 60px 0 0 60px;
+}
+
 .modal-box {
     background: var(--panel);
     border: 1px solid var(--border);

@@ -458,6 +458,7 @@
 
     function closeQuotesModal() {
         quotesModalBackdrop.style.display = "none";
+        quotesModalBackdrop.classList.remove("stacked");
         resetModalPosition(quotesModalTitle);
     }
 
@@ -480,7 +481,15 @@
                 item.innerHTML =
                     '<div class="meta"><div class="code-name"></div><div class="excerpt"></div></div>' +
                     '<span class="remove" title="Remove this code from this quote">✕</span>';
-                item.querySelector(".code-name").textContent = h.codeName;
+                const nameEl = item.querySelector(".code-name");
+                nameEl.textContent = h.codeName;
+                nameEl.classList.add("clickable");
+                nameEl.title = "Show all quotes coded with this code";
+                nameEl.addEventListener("click", () => {
+                    // Opens on top of this modal, which stays open underneath.
+                    quotesModalBackdrop.classList.add("stacked");
+                    openQuotesModal(codes.find((c) => c.name === h.codeName) || { name: h.codeName });
+                });
                 item.querySelector(".excerpt").textContent =
                     h.text.length > 140 ? h.text.slice(0, 140) + "…" : h.text;
                 item.querySelector(".remove").addEventListener("click", () => {
@@ -675,6 +684,11 @@
 
     document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
+        // A stacked quotes modal closes alone, leaving the one below it open.
+        if (quotesModalBackdrop.classList.contains("stacked") && quotesModalBackdrop.style.display !== "none") {
+            closeQuotesModal();
+            return;
+        }
         if (modalBackdrop.style.display !== "none") closeCodeModal();
         if (quotesModalBackdrop.style.display !== "none") closeQuotesModal();
         if (quoteCodesModalBackdrop.style.display !== "none") closeQuoteCodesModal();
