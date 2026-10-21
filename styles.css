@@ -260,6 +260,31 @@ mark.coded-highlight:hover {
     outline: 2px solid rgba(0, 0, 0, 0.35);
 }
 
+mark.coded-highlight.resizing {
+    outline: 2px solid rgba(0, 0, 0, 0.55);
+}
+
+/* Drag handles at the two ends of a quote being resized. */
+.resize-handle {
+    position: fixed;
+    width: 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.5);
+    cursor: ew-resize;
+    z-index: 1500;
+}
+
+body.resizing-highlight,
+body.resizing-highlight * {
+    cursor: ew-resize !important;
+    user-select: none;
+}
+
+/* Lets the pointer find the text under a handle while it is dragged. */
+body.resizing-highlight .resize-handle {
+    pointer-events: none;
+}
+
 mark.pending-selection {
     background-color: rgba(255, 193, 7, 0.35);
     outline: 1px dashed #b8860b;
@@ -532,6 +557,16 @@ mark.pending-selection {
     margin-top: 2px;
     white-space: normal;
     word-wrap: break-word;
+}
+
+.coding-item .resize {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.coding-item .resize:hover {
+    color: var(--accent);
 }
 
 .coding-item .remove {

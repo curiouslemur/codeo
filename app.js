@@ -480,7 +480,12 @@
                 item.style.borderLeftColor = h.color;
                 item.innerHTML =
                     '<div class="meta"><div class="code-name"></div><div class="excerpt"></div></div>' +
+                    '<span class="resize" title="Drag to cover more or fewer words">↔</span>' +
                     '<span class="remove" title="Remove this code from this quote">✕</span>';
+                item.querySelector(".resize").addEventListener("click", () => {
+                    closeQuoteCodesModal();
+                    startHighlightResize(h.id);
+                });
                 const nameEl = item.querySelector(".code-name");
                 nameEl.textContent = h.codeName;
                 nameEl.classList.add("clickable");
@@ -684,6 +689,10 @@
 
     document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
+        if (resizing) {
+            endHighlightResize();
+            return;
+        }
         // A stacked quotes modal closes alone, leaving the one below it open.
         if (quotesModalBackdrop.classList.contains("stacked") && quotesModalBackdrop.style.display !== "none") {
             closeQuotesModal();
@@ -1126,6 +1135,7 @@
     }
 
     async function loadTranscript(entry) {
+        endHighlightResize();
         compare.exit();
         currentFile = entry.file;
         pendingSelection = null;
@@ -1291,17 +1301,168 @@
         });
     }
 
-    function removeHighlight(id) {
-        const list = loadHighlights(currentFile).filter((h) => h.id !== id);
-        saveHighlights(currentFile, list);
+    function unwrapHighlightMarks(id) {
         transcriptPane.querySelectorAll('mark[data-highlight-id="' + id + '"]').forEach((m) => {
             const parent = m.parentNode;
             while (m.firstChild) parent.insertBefore(m.firstChild, m);
             parent.removeChild(m);
             parent.normalize();
         });
+    }
+
+    function removeHighlight(id) {
+        if (resizing && resizing.id === id) endHighlightResize();
+        const list = loadHighlights(currentFile).filter((h) => h.id !== id);
+        saveHighlights(currentFile, list);
+        unwrapHighlightMarks(id);
         renderCodingsList();
     }
+
+    // ---- Resizing a coded quote ---------------------------------------------
+    // Two handles sit at the ends of the highlight; dragging one moves that
+    // end, snapped to whole words. Each drag is saved when the mouse is released.
+    let resizing = null; // { id, start, end, handles: { start, end }, dragging }
+
+    function offsetFromPoint(x, y) {
+        let node, offset;
+        if (document.caretPositionFromPoint) {
+            const pos = document.caretPositionFromPoint(x, y);
+            if (!pos) return null;
+            node = pos.offsetNode;
+            offset = pos.offset;
+        } else if (document.caretRangeFromPoint) {
+            const r = document.caretRangeFromPoint(x, y);
+            if (!r) return null;
+            node = r.startContainer;
+            offset = r.startOffset;
+        } else {
+            return null;
+        }
+        if (!node || node.nodeType !== 3 || !transcriptPane.contains(node)) return null;
+        const walker = document.createTreeWalker(transcriptPane, NodeFilter.SHOW_TEXT);
+        let n, total = 0;
+        while ((n = walker.nextNode())) {
+            if (n === node) return total + offset;
+            total += n.nodeValue.length;
+        }
+        return null;
+    }
+
+    function snapToWord(text, offset, side) {
+        if (side === "start") {
+            while (offset > 0 && /\S/.test(text[offset - 1])) offset--;
+            while (offset < text.length && /\s/.test(text[offset])) offset++;
+        } else {
+            while (offset < text.length && /\S/.test(text[offset])) offset++;
+            while (offset > 0 && /\s/.test(text[offset - 1])) offset--;
+        }
+        return offset;
+    }
+
+    function rewrapResizing() {
+        const h = loadHighlights(currentFile).find((x) => x.id === resizing.id);
+        unwrapHighlightMarks(resizing.id);
+        wrapOffsets(transcriptPane, resizing.start, resizing.end, {
+            "data-highlight-id": h.id,
+            "data-code-id": h.codeId,
+            style: highlightStyle(h.color),
+            title: h.codeName,
+            class: "coded-highlight resizing",
+        });
+    }
+
+    function positionResizeHandles() {
+        if (!resizing) return;
+        const marks = transcriptPane.querySelectorAll('mark[data-highlight-id="' + resizing.id + '"]');
+        if (!marks.length) return;
+        const firstRects = marks[0].getClientRects();
+        const lastRects = marks[marks.length - 1].getClientRects();
+        const paneRect = transcriptPane.getBoundingClientRect();
+        const place = (handle, rect, x) => {
+            const visible = rect && rect.bottom > paneRect.top && rect.top < paneRect.bottom;
+            handle.style.display = visible ? "block" : "none";
+            if (!visible) return;
+            handle.style.left = x - 4 + "px";
+            handle.style.top = rect.top + "px";
+            handle.style.height = rect.height + "px";
+        };
+        const a = firstRects[0], b = lastRects[lastRects.length - 1];
+        place(resizing.handles.start, a, a && a.left);
+        place(resizing.handles.end, b, b && b.right);
+    }
+
+    function startHighlightResize(id) {
+        endHighlightResize();
+        const h = loadHighlights(currentFile).find((x) => x.id === id);
+        if (!h) return;
+        resizing = { id, start: h.start, end: h.end, handles: {}, dragging: null };
+        ["start", "end"].forEach((side) => {
+            const handle = document.createElement("div");
+            handle.className = "resize-handle";
+            handle.style.background = h.color;
+            handle.title = "Drag to change where this quote " + (side === "start" ? "starts" : "ends");
+            handle.addEventListener("mousedown", (e) => {
+                resizing.dragging = side;
+                document.body.classList.add("resizing-highlight");
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            document.body.appendChild(handle);
+            resizing.handles[side] = handle;
+        });
+        rewrapResizing();
+        positionResizeHandles();
+        statusEl.textContent = 'Drag the handles to resize "' + h.codeName + '". Click elsewhere or press Esc when done.';
+        const first = transcriptPane.querySelector('mark[data-highlight-id="' + id + '"]');
+        if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    function endHighlightResize() {
+        if (!resizing) return;
+        Object.values(resizing.handles).forEach((el) => el.remove());
+        transcriptPane.querySelectorAll('mark[data-highlight-id="' + resizing.id + '"]').forEach((m) => {
+            m.classList.remove("resizing");
+        });
+        document.body.classList.remove("resizing-highlight");
+        resizing = null;
+        statusEl.textContent = "";
+    }
+
+    window.addEventListener("mousemove", (e) => {
+        if (!resizing || !resizing.dragging) return;
+        const raw = offsetFromPoint(e.clientX, e.clientY);
+        if (raw === null) return;
+        const text = transcriptPane.textContent;
+        const side = resizing.dragging;
+        let off = snapToWord(text, raw, side);
+        if (side === "start") off = Math.min(off, resizing.end - 1);
+        else off = Math.max(off, resizing.start + 1);
+        if (off === resizing[side]) return;
+        resizing[side] = off;
+        rewrapResizing();
+        positionResizeHandles();
+    });
+
+    window.addEventListener("mouseup", () => {
+        if (!resizing || !resizing.dragging) return;
+        resizing.dragging = null;
+        document.body.classList.remove("resizing-highlight");
+        const list = loadHighlights(currentFile);
+        const h = list.find((x) => x.id === resizing.id);
+        if (!h) return;
+        h.start = resizing.start;
+        h.end = resizing.end;
+        h.text = transcriptPane.textContent.slice(h.start, h.end);
+        h.paragraph = paragraphNumberForOffset(h.start);
+        saveHighlights(currentFile, list);
+        renderCodingsList();
+    });
+
+    document.addEventListener("mousedown", (e) => {
+        if (resizing && !e.target.classList.contains("resize-handle")) endHighlightResize();
+    });
+    transcriptPane.addEventListener("scroll", positionResizeHandles);
+    window.addEventListener("resize", positionResizeHandles);
 
     // The pending selection gets its own visual marker in the transcript,
     // independent of the browser's native text selection. Native selection
