@@ -462,6 +462,16 @@
         resetModalPosition(quotesModalTitle);
     }
 
+    // A long quote is shortened to its first words, "…", and its last few
+    // words, so you can still see where the coded span ends.
+    function quoteExcerpt(text) {
+        text = text.trim();
+        if (text.length <= 140) return text;
+        const head = text.slice(0, 90).replace(/\s+\S*$/, "");
+        const tail = text.slice(-40).replace(/^\S*\s+/, "");
+        return head + " … " + tail;
+    }
+
     function openQuoteCodesModal(highlightIds) {
         let entries = loadHighlights(currentFile)
             .filter((h) => highlightIds.includes(h.id))
@@ -495,8 +505,7 @@
                     quotesModalBackdrop.classList.add("stacked");
                     openQuotesModal(codes.find((c) => c.name === h.codeName) || { name: h.codeName });
                 });
-                item.querySelector(".excerpt").textContent =
-                    h.text.length > 140 ? h.text.slice(0, 140) + "…" : h.text;
+                item.querySelector(".excerpt").textContent = quoteExcerpt(h.text);
                 item.querySelector(".remove").addEventListener("click", () => {
                     removeHighlight(h.id);
                     entries = entries.filter((e) => e.id !== h.id);
@@ -1646,8 +1655,7 @@
                     openQuotesModal(matchedCode);
                 });
             }
-            item.querySelector(".excerpt").textContent =
-                h.text.length > 140 ? h.text.slice(0, 140) + "…" : h.text;
+            item.querySelector(".excerpt").textContent = quoteExcerpt(h.text);
             item.querySelector(".remove").addEventListener("click", () => removeHighlight(h.id));
             item.addEventListener("mouseenter", () => {
                 const els = transcriptPane.querySelectorAll('mark[data-highlight-id="' + h.id + '"]');
@@ -1984,8 +1992,6 @@
         transcriptSelect,
         statusEl,
         quotesModal: { backdrop: quotesModalBackdrop, title: quotesModalTitle, list: quotesModalList },
-        quoteCodesModal: { backdrop: quoteCodesModalBackdrop, title: quoteCodesModalTitle, list: quoteCodesModalList },
-        closeQuoteCodesModal,
         openCodeModal,
         makeDraggable,
         resetModalPosition,
@@ -1995,6 +2001,7 @@
         wrapOffsets,
         highlightStyle,
         escapeHtml,
+        quoteExcerpt,
         parseCsv,
         codesFromCsvRows,
         stripQuoteMarks,

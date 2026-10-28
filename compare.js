@@ -10,9 +10,9 @@
 function setupCompare(app) {
     const {
         TRANSCRIPTS, CATEGORY_COLORS, transcriptPane, transcriptSelect, statusEl,
-        quotesModal, quoteCodesModal, closeQuoteCodesModal, openCodeModal,
+        quotesModal, openCodeModal,
         makeDraggable, resetModalPosition, addModalCloseButton, loadTranscript,
-        loadHighlights, wrapOffsets, highlightStyle, escapeHtml, parseCsv,
+        loadHighlights, wrapOffsets, highlightStyle, escapeHtml, quoteExcerpt, parseCsv,
         codesFromCsvRows, stripQuoteMarks, locateQuote,
     } = app;
 
@@ -41,6 +41,10 @@ function setupCompare(app) {
     const compareExitBtn = document.getElementById("compare-exit-btn");
     const comparePane = document.getElementById("compare-pane");
     const layoutEl = document.getElementById("layout");
+    const theirCodesModalBackdrop = document.getElementById("their-codes-modal-backdrop");
+    const theirCodesModalTitle = document.getElementById("their-codes-modal-title");
+    const theirCodesModalList = document.getElementById("their-codes-modal-list");
+    const theirCodesModalCloseBtn = document.getElementById("their-codes-modal-close-btn");
 
     function openCompareModal() {
         compareCodebookInput.value = "";
@@ -242,6 +246,7 @@ function setupCompare(app) {
     function exitCompare() {
         if (!compareState) return;
         compareState = null;
+        closeTheirCodesModal();
         setCompareSidePaneOpen(false);
         layoutEl.classList.remove("compare-mode", "show-diffs");
         comparePane.style.display = "none";
@@ -273,13 +278,27 @@ function setupCompare(app) {
     syncScroll(transcriptPane, comparePane);
     syncScroll(comparePane, transcriptPane);
 
+    // Their codes have their own modal, over the right half, so it can stay
+    // open next to the one listing my codes on the left.
+    function closeTheirCodesModal() {
+        theirCodesModalBackdrop.style.display = "none";
+        resetModalPosition(theirCodesModalTitle);
+    }
+
+    theirCodesModalCloseBtn.addEventListener("click", closeTheirCodesModal);
+    makeDraggable(theirCodesModalTitle);
+    addModalCloseButton(theirCodesModalBackdrop, closeTheirCodesModal);
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && theirCodesModalBackdrop.style.display !== "none") closeTheirCodesModal();
+    });
+
     // Clicking their highlight lists their codes on that spot. A code I don't
     // have yet can be added to my codebook through the usual new-code form,
     // prefilled with their definition, category and color.
     function openTheirQuoteCodesModal(ids) {
         const entries = compareState.theirs.filter((t) => ids.includes(t.id)).sort((a, b) => a.start - b.start);
-        quoteCodesModal.title.textContent = otherCoderPossessive() + " codes on this quote (" + entries.length + ")";
-        quoteCodesModal.list.innerHTML = "";
+        theirCodesModalTitle.textContent = otherCoderPossessive() + " codes on this quote (" + entries.length + ")";
+        theirCodesModalList.innerHTML = "";
         entries.forEach((t) => {
             const item = document.createElement("div");
             item.className = "coding-item";
@@ -287,7 +306,7 @@ function setupCompare(app) {
             item.innerHTML = '<div class="meta"><div class="code-name"></div><div class="excerpt"></div></div>';
             const def = (compareState.theirCodebook.get(t.codeName) || {}).definition;
             item.querySelector(".code-name").textContent = t.codeName + (def ? " — " + def : "");
-            item.querySelector(".excerpt").textContent = t.text.length > 140 ? t.text.slice(0, 140) + "…" : t.text;
+            item.querySelector(".excerpt").textContent = quoteExcerpt(t.text);
             if (app.codes.some((c) => c.name === t.codeName)) {
                 const note = document.createElement("span");
                 note.className = "in-codebook-note";
@@ -300,7 +319,7 @@ function setupCompare(app) {
                 addBtn.textContent = "Add to my codebook";
                 addBtn.addEventListener("click", () => {
                     const theirs = compareState.theirCodebook.get(t.codeName) || {};
-                    closeQuoteCodesModal();
+                    closeTheirCodesModal();
                     openCodeModal(t.codeName, {
                         color: t.color,
                         category: theirs.category,
@@ -312,9 +331,9 @@ function setupCompare(app) {
                 });
                 item.appendChild(addBtn);
             }
-            quoteCodesModal.list.appendChild(item);
+            theirCodesModalList.appendChild(item);
         });
-        quoteCodesModal.backdrop.style.display = "flex";
+        theirCodesModalBackdrop.style.display = "flex";
     }
 
     comparePane.addEventListener("click", (e) => {

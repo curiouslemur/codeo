@@ -1011,6 +1011,16 @@ mark.coded-highlight.flash-highlight {
     flex: 0 0 340px;
 }
 
+/* While comparing, the modals listing the codes on a clicked quote open over
+   their own half: mine on the left, theirs on the right, both at once. */
+#layout.compare-mode #quote-codes-modal-backdrop {
+    right: 50%;
+}
+
+#their-codes-modal-backdrop {
+    left: 50%;
+}
+
 #layout.show-diffs mark.compare-unmatched {
     outline: 3px dashed #c0392b;
     outline-offset: 2px;
