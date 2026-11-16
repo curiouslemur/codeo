@@ -1021,6 +1021,19 @@ mark.coded-highlight.flash-highlight {
     left: 50%;
 }
 
+/* Their codings can be dragged onto my transcript to code the same excerpt. */
+#compare-pane mark[data-their-id],
+#their-codes-modal-list .coding-item {
+    cursor: grab;
+    -webkit-user-drag: element;
+}
+
+#layout.dragging-their-coding #transcript-pane {
+    outline: 3px dashed var(--accent);
+    outline-offset: -6px;
+    background: #f3f6ff;
+}
+
 #layout.show-diffs mark.compare-unmatched {
     outline: 3px dashed #c0392b;
     outline-offset: 2px;

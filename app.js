@@ -1244,6 +1244,7 @@
             title: code.name,
         });
         renderCodingsList();
+        return id;
     }
 
     function saveCodeEdits(code, category) {
@@ -1993,6 +1994,7 @@
         statusEl,
         quotesModal: { backdrop: quotesModalBackdrop, title: quotesModalTitle, list: quotesModalList },
         openCodeModal,
+        addHighlightForCode,
         makeDraggable,
         resetModalPosition,
         addModalCloseButton,

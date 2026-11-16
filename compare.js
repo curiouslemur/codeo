@@ -10,7 +10,7 @@
 function setupCompare(app) {
     const {
         TRANSCRIPTS, CATEGORY_COLORS, transcriptPane, transcriptSelect, statusEl,
-        quotesModal, openCodeModal,
+        quotesModal, openCodeModal, addHighlightForCode,
         makeDraggable, resetModalPosition, addModalCloseButton, loadTranscript,
         loadHighlights, wrapOffsets, highlightStyle, escapeHtml, quoteExcerpt, parseCsv,
         codesFromCsvRows, stripQuoteMarks, locateQuote,
@@ -195,8 +195,9 @@ function setupCompare(app) {
         theirs.slice().sort((a, b) => a.start - b.start).forEach((h) => {
             wrapOffsets(comparePane, h.start, h.end, {
                 "data-their-id": h.id,
+                draggable: "true",
                 style: highlightStyle(h.color),
-                title: h.codeName,
+                title: h.codeName + "\nDrag onto your transcript (left) to code this excerpt the same way",
             });
         });
 
@@ -304,6 +305,11 @@ function setupCompare(app) {
             item.className = "coding-item";
             item.style.borderLeftColor = t.color;
             item.innerHTML = '<div class="meta"><div class="code-name"></div><div class="excerpt"></div></div>';
+            // Each listed code can be dragged onto my transcript on its own,
+            // which picks one code where several overlap.
+            item.draggable = true;
+            item.title = "Drag onto your transcript (left) to code this excerpt with " + t.codeName;
+            item.addEventListener("dragstart", (e) => startTheirDrag(e, t.id));
             const def = (compareState.theirCodebook.get(t.codeName) || {}).definition;
             item.querySelector(".code-name").textContent = t.codeName + (def ? " — " + def : "");
             item.querySelector(".excerpt").textContent = quoteExcerpt(t.text);
@@ -344,6 +350,88 @@ function setupCompare(app) {
         if (!ids.length || !compareState) return;
         openTheirQuoteCodesModal(ids);
     });
+
+    // ---- Drag one of their codings onto my transcript -------------------------
+    // Dropping it anywhere on the left codes the exact same excerpt with the
+    // same code in my coding. Both panes hold the same transcript HTML, so
+    // their offsets are valid in mine. A code I don't have yet goes through the
+    // usual new-code form (prefilled from theirs) first.
+    const DRAG_TYPE = "application/x-codeo-their-coding";
+
+    function startTheirDrag(e, theirId) {
+        e.dataTransfer.setData(DRAG_TYPE, theirId);
+        e.dataTransfer.effectAllowed = "copy";
+        layoutEl.classList.add("dragging-their-coding");
+    }
+
+    comparePane.addEventListener("dragstart", (e) => {
+        const el = e.target.nodeType === 1 ? e.target : e.target.parentElement;
+        const mark = el && el.closest("mark[data-their-id]");
+        if (!mark || !compareState) return;
+        startTheirDrag(e, mark.dataset.theirId);
+    });
+
+    document.addEventListener("dragend", () => {
+        layoutEl.classList.remove("dragging-their-coding");
+    });
+
+    transcriptPane.addEventListener("dragover", (e) => {
+        if (!compareState || !e.dataTransfer.types.includes(DRAG_TYPE)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+    });
+
+    transcriptPane.addEventListener("drop", (e) => {
+        if (!compareState || !e.dataTransfer.types.includes(DRAG_TYPE)) return;
+        e.preventDefault();
+        layoutEl.classList.remove("dragging-their-coding");
+        const t = compareState.theirs.find((x) => x.id === e.dataTransfer.getData(DRAG_TYPE));
+        if (t) adoptTheirCoding(t);
+    });
+
+    function adoptTheirCoding(t) {
+        if (transcriptPane.textContent.slice(t.start, t.end) !== t.text) {
+            statusEl.textContent = "Could not apply that coding: the transcripts on the two sides don't line up.";
+            return;
+        }
+        const code = app.codes.find((c) => c.name === t.codeName);
+        if (code) {
+            applyTheirCoding(code, t);
+            return;
+        }
+        const file = app.currentFile;
+        const theirs = compareState.theirCodebook.get(t.codeName) || {};
+        openCodeModal(t.codeName, {
+            color: t.color,
+            category: theirs.category,
+            definition: theirs.definition,
+            onClose: () => {
+                const added = app.codes.find((c) => c.name === t.codeName);
+                if (added && compareState && app.currentFile === file) applyTheirCoding(added, t);
+            },
+        });
+    }
+
+    function applyTheirCoding(code, t) {
+        const existing = loadHighlights(app.currentFile)
+            .find((h) => h.codeId === code.id && h.start === t.start && h.end === t.end);
+        if (existing) {
+            flashMine(existing.id);
+            statusEl.textContent = 'You already coded this excerpt with "' + code.name + '".';
+            return;
+        }
+        flashMine(addHighlightForCode(code, t.start, t.end, t.text));
+        statusEl.textContent = 'Coded the excerpt with "' + code.name + '", as ' + (compareState.name || "they") + " did.";
+    }
+
+    function flashMine(highlightId) {
+        transcriptPane.querySelectorAll('mark[data-highlight-id="' + highlightId + '"]').forEach((m) => {
+            m.classList.remove("flash-highlight");
+            void m.offsetWidth; // restart the animation
+            m.classList.add("flash-highlight");
+            setTimeout(() => m.classList.remove("flash-highlight"), 1500);
+        });
+    }
 
     // Per code: how often each of us used it in this transcript, and how many
     // of my codings they also applied (same code on overlapping text).
